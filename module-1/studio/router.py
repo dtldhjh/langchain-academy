@@ -1,7 +1,37 @@
+'''
+Description: 
+version: 
+Author: hjh
+Date: 2025-03-23 22:44:52
+LastEditors: hjh
+LastEditTime: 2025-05-04 21:29:57
+'''
 from langchain_openai import ChatOpenAI
 from langgraph.graph import MessagesState
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
+import time
+import jwt
+import os
+from dotenv import load_dotenv,find_dotenv
+load_dotenv(find_dotenv())
+
+
+def encode_jwt_token(ak, sk):
+    headers = {
+        "alg": "HS256",
+        "typ": "JWT"
+    }
+    payload = {
+        "iss": ak,
+        "exp": int(time.time()) + 3600*24*30, # 填写您期望的有效时间
+        "nbf": int(time.time()) # 填写您期望的生效时间
+    }
+    token = jwt.encode(payload, sk, headers=headers)
+    return token
+
+ak = os.getenv('ak')
+sk = os.getenv('sk')
 
 # Tool
 def multiply(a: int, b: int) -> int:
@@ -14,7 +44,10 @@ def multiply(a: int, b: int) -> int:
     return a * b
 
 # LLM with bound tool
-llm = ChatOpenAI(model="gpt-4o")
+# llm = ChatOpenAI(model="gpt-4o")
+llm = ChatOpenAI(api_key=encode_jwt_token(ak, sk),
+    base_url="https://api.sensenova.cn/compatible-mode/v1/",
+    model_name="SenseChat-5",)
 llm_with_tools = llm.bind_tools([multiply])
 
 # Node

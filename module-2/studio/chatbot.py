@@ -1,10 +1,47 @@
 from langchain_core.messages import HumanMessage, SystemMessage, RemoveMessage
 from langgraph.graph import MessagesState
 from langgraph.graph import StateGraph, START, END
+import sqlite3
 
 # We will use this model for both the conversation and the summarization
+import time
+import jwt
+import os,getpass
 from langchain_openai import ChatOpenAI
-model = ChatOpenAI(model="gpt-4o", temperature=0) 
+from dotenv import load_dotenv,find_dotenv
+load_dotenv(find_dotenv())
+
+def _set_env(var: str):
+    if not os.getenv(var):
+        os.environ[var] = getpass.getpass(f"{var}: ")
+        
+def encode_jwt_token(ak, sk):
+    headers = {
+        "alg": "HS256",
+        "typ": "JWT"
+    }
+    payload = {
+        "iss": ak,
+        "exp": int(time.time()) + 3600*24*30, # 填写您期望的有效时间
+        "nbf": int(time.time()) # 填写您期望的生效时间
+    }
+    token = jwt.encode(payload, sk, headers=headers)
+    return token
+
+ak = os.getenv('ak')
+sk = os.getenv('sk')
+
+model = ChatOpenAI(api_key=encode_jwt_token(ak, sk),
+    base_url="https://api.sensenova.cn/compatible-mode/v1/",
+    model_name="SenseChat-5",timeout=60)
+
+
+db_path = "state_db/example.db"
+conn = sqlite3.connect(db_path, check_same_thread=False)
+
+# Here is our checkpointer 
+from langgraph.checkpoint.sqlite import SqliteSaver
+memory = SqliteSaver(conn)
 
 # State class to store messages and summary
 class State(MessagesState):
@@ -82,4 +119,4 @@ workflow.add_conditional_edges("conversation", should_continue)
 workflow.add_edge("summarize_conversation", END)
 
 # Compile
-graph = workflow.compile()
+graph = workflow.compile(checkpointer=memory)
